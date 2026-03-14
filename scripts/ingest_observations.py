@@ -32,12 +32,12 @@ def load_db_config() -> dict:
     import os
     if os.environ.get("DB_HOST"):
         return {
-            "host":     os.environ["DB_HOST"],
-            "port":     int(os.environ.get("DB_PORT", 5432)),
-            "dbname":   os.environ["DB_NAME"],
-            "user":     os.environ["DB_USER"],
-            "password": os.environ["DB_PASSWORD"],
-            "sslmode":  os.environ.get("DB_SSLMODE", "require"),
+            "host":     os.environ["DB_HOST"].strip(),
+            "port":     int(os.environ.get("DB_PORT", "5432").strip()),
+            "dbname":   os.environ["DB_NAME"].strip(),
+            "user":     os.environ["DB_USER"].strip(),
+            "password": os.environ["DB_PASSWORD"].strip(),
+            "sslmode":  os.environ.get("DB_SSLMODE", "require").strip(),
         }
     lines = DB_KEY_PATH.read_text().strip().splitlines()
     return {
