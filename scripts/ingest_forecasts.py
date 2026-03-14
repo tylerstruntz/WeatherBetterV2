@@ -55,9 +55,10 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 NWS_POINTS_URL = "https://api.weather.gov/points"
 NWS_USER_AGENT = "WeatherBetterV2 (weather@example.com)"
 
-FORECAST_DAYS = 7
-RETRY_LIMIT   = 3
-RETRY_BACKOFF = [2, 5, 10]
+FORECAST_DAYS    = 7
+RETRY_LIMIT      = 3
+RETRY_BACKOFF    = [2, 5, 10]
+OM_TIMEOUT       = 15   # Open-Meteo is fast — 15s is plenty, fail fast and retry
 
 # Open-Meteo daily variables we need
 OM_DAILY_VARS = (
@@ -182,7 +183,7 @@ def fetch_open_meteo(lat, lon, model, timezone):
         "forecast_days":      FORECAST_DAYS,
         "timezone":           timezone,
     }
-    return _retry_get(OPEN_METEO_URL, params=params)
+    return _retry_get(OPEN_METEO_URL, params=params, timeout=OM_TIMEOUT)
 
 
 def fetch_nws_grid(lat, lon):
