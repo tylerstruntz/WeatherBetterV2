@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(python scripts/verify_forecasts.py)",
+      "Bash(python scripts/train_and_predict.py)",
+      "Bash(powershell.exe -Command \"schtasks /query /tn ''WeatherBetterV2_DailyPipeline'' /v /fo list\")",
+      "WebFetch(domain:forecast.weather.gov)",
+      "Bash(python scripts/diurnal_analysis.py)",
+      "Bash(python scripts/migrate_to_neon.py)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(sed -i 's/        \"\"password\"\": lines\\\\[4\\\\],/        \"\"password\"\": lines[4],\\\\n        \"\"sslmode\"\":  lines[5] if len\\(lines\\) > 5 else \"\"prefer\"\",/' f:/WeatherBetterV2/scripts/$f)",
+      "Bash(echo \"Updated $f\")",
+      "Bash(done)"
+    ]
+  }
+}

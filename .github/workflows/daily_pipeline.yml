@@ -1,0 +1,42 @@
+name: Daily Weather Pipeline
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 8:00 AM CDT (UTC-5) / 7:00 AM CST (UTC-6)
+  workflow_dispatch:         # allows manual trigger from GitHub UI
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DB_HOST:        ${{ secrets.DB_HOST }}
+      DB_PORT:        ${{ secrets.DB_PORT }}
+      DB_NAME:        ${{ secrets.DB_NAME }}
+      DB_USER:        ${{ secrets.DB_USER }}
+      DB_PASSWORD:    ${{ secrets.DB_PASSWORD }}
+      DB_SSLMODE:     require
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install psycopg2-binary requests
+
+      - name: Run ingest_observations
+        run: python scripts/ingest_observations.py
+
+      - name: Run ingest_forecasts
+        run: python scripts/ingest_forecasts.py
+
+      - name: Run verify_forecasts
+        run: python scripts/verify_forecasts.py

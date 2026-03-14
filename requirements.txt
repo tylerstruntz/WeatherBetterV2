@@ -1,0 +1,6 @@
+psycopg2-binary
+requests
+pandas
+numpy
+xgboost
+scikit-learn
