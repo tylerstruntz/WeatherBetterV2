@@ -22,9 +22,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -33,10 +37,39 @@ jobs:
         run: pip install psycopg2-binary requests
 
       - name: Run ingest_observations
+        id: obs
         run: python scripts/ingest_observations.py
 
       - name: Run ingest_forecasts
+        id: fcst
         run: python scripts/ingest_forecasts.py
 
       - name: Run verify_forecasts
+        id: verify
         run: python scripts/verify_forecasts.py
+
+      - name: Send Discord notification
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          COLOR=3066993
+          ICON="✅"
+          if [ "$STATUS" != "success" ]; then
+            COLOR=15158332
+            ICON="❌"
+          fi
+          curl -s -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"username\": \"WeatherBetter\",
+              \"embeds\": [{
+                \"title\": \"$ICON Daily Pipeline $STATUS\",
+                \"color\": $COLOR,
+                \"description\": \"Run completed on $(date -u '+%Y-%m-%d at %H:%M UTC')\",
+                \"fields\": [
+                  {\"name\": \"Observations\", \"value\": \"${{ steps.obs.outcome || 'ran' }}\", \"inline\": true},
+                  {\"name\": \"Forecasts\", \"value\": \"${{ steps.fcst.outcome || 'ran' }}\", \"inline\": true},
+                  {\"name\": \"Verification\", \"value\": \"${{ steps.verify.outcome || 'ran' }}\", \"inline\": true}
+                ]
+              }]
+            }"
