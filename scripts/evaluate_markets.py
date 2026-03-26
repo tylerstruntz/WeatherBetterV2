@@ -93,7 +93,7 @@ def load_ml_preds(today):
             SELECT f.city_id, f.target_date, f.temp_high, c.name
             FROM forecasts f JOIN cities c ON c.id = f.city_id
             WHERE f.source_id = 4
-              AND f.target_date > %s AND f.target_date <= %s
+              AND f.target_date >= %s AND f.target_date <= %s
               AND f.temp_high IS NOT NULL
         """, (today, today + timedelta(days=MAX_LEAD_DAYS)))
         rows = cur.fetchall()
@@ -109,7 +109,7 @@ def load_nws_preds(today):
                    f.city_id, f.target_date, f.temp_high
             FROM forecasts f
             WHERE f.source_id = 3
-              AND f.target_date > %s AND f.target_date <= %s
+              AND f.target_date >= %s AND f.target_date <= %s
               AND f.temp_high IS NOT NULL
             ORDER BY f.city_id, f.target_date, f.lead_days ASC
         """, (today, today + timedelta(days=MAX_LEAD_DAYS)))
@@ -275,7 +275,7 @@ def run(output_json=False, show_all=False):
             extract_date(m)
             for m in markets
             if extract_date(m) is not None
-               and 1 <= (extract_date(m) - today).days <= MAX_LEAD_DAYS
+               and 0 <= (extract_date(m) - today).days <= MAX_LEAD_DAYS
                and (city_id, extract_date(m)) in ml_preds
         }
 
