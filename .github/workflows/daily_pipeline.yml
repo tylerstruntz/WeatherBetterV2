@@ -2,7 +2,7 @@ name: Daily Weather Pipeline
 
 on:
   schedule:
-    - cron: '0 13 * * *'   # 8:00 AM CDT (UTC-5) / 7:00 AM CST (UTC-6)
+    - cron: '0 8 * * *'   # 8:00 AM CDT (UTC-5) / 7:00 AM CST (UTC-6)
   workflow_dispatch:         # allows manual trigger from GitHub UI
 
 jobs:
