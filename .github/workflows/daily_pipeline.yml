@@ -35,7 +35,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install psycopg2-binary requests scipy gspread google-auth pandas xgboost scikit-learn
+        run: pip install psycopg2-binary requests scipy gspread google-auth
 
       - name: Run ingest_observations
         id: obs
@@ -44,10 +44,6 @@ jobs:
       - name: Run ingest_forecasts
         id: fcst
         run: python scripts/ingest_forecasts.py
-
-      - name: Run train_and_predict
-        id: train
-        run: python scripts/train_and_predict.py
 
       - name: Run evaluate_markets
         id: eval
@@ -78,7 +74,6 @@ jobs:
                 \"fields\": [
                   {\"name\": \"Observations\", \"value\": \"${{ steps.obs.outcome || 'ran' }}\", \"inline\": true},
                   {\"name\": \"Forecasts\",    \"value\": \"${{ steps.fcst.outcome || 'ran' }}\", \"inline\": true},
-                  {\"name\": \"Train+Predict\",\"value\": \"${{ steps.train.outcome || 'ran' }}\", \"inline\": true},
                   {\"name\": \"Evaluate\",     \"value\": \"${{ steps.eval.outcome || 'ran' }}\", \"inline\": true},
                   {\"name\": \"Paper Trade\",  \"value\": \"${{ steps.trade.outcome || 'ran' }}\", \"inline\": true}
                 ]
