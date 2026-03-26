@@ -187,6 +187,18 @@ def _is_trace(text):
     return text is not None and text.strip() == "T"
 
 
+def _normalize_time(text):
+    """Normalize NWS time strings like '353 PM' → '3:53 PM'."""
+    if not text:
+        return None
+    text = text.strip()
+    import re
+    m = re.match(r'^(\d{1,2}):?(\d{2})\s*([AP]M)$', text)
+    if m:
+        return f"{m.group(1)}:{m.group(2)} {m.group(3)}"
+    return None
+
+
 def parse_cli_date(text):
     """
     Extract the observation date from the CLI report header.
@@ -235,22 +247,22 @@ def parse_cli_report(text):
     # MINIMUM         51  11:27 PM  33    1969  55     -4       51
     # AVERAGE         58                        63     -5       65
     temp_max_m = re.search(
-        r'MAXIMUM\s+(-?\d+)\s+(\d{1,2}:\d{2}\s*[AP]M)?',
+        r'MAXIMUM\s+(-?\d+)[A-Z]?\s+(\d{1,2}:?\d{2}\s*[AP]M)?',
         text
     )
     if temp_max_m:
         result["temp_high"] = float(temp_max_m.group(1))
         if temp_max_m.group(2):
-            result["temp_high_time"] = temp_max_m.group(2).strip()
+            result["temp_high_time"] = _normalize_time(temp_max_m.group(2))
 
     temp_min_m = re.search(
-        r'MINIMUM\s+(-?\d+)\s+(\d{1,2}:\d{2}\s*[AP]M)?',
+        r'MINIMUM\s+(-?\d+)[A-Z]?\s+(\d{1,2}:?\d{2}\s*[AP]M)?',
         text
     )
     if temp_min_m:
         result["temp_low"] = float(temp_min_m.group(1))
         if temp_min_m.group(2):
-            result["temp_low_time"] = temp_min_m.group(2).strip()
+            result["temp_low_time"] = _normalize_time(temp_min_m.group(2))
 
     temp_avg_m = re.search(r'AVERAGE\s+(-?\d+)', text)
     if temp_avg_m:
@@ -260,7 +272,7 @@ def parse_cli_report(text):
     # Format: MAXIMUM  65  4:25 PM  86  1974  72  -7  78
     #                                         normal depart last
     temp_max_full = re.search(
-        r'MAXIMUM\s+(-?\d+)\s+\d{1,2}:\d{2}\s*[AP]M\s+(-?\d+|MM)\s+\d{4}\s+(-?\d+|MM)\s+(-?\d+|MM)',
+        r'MAXIMUM\s+(-?\d+)[A-Z]?\s+\d{1,2}:?\d{2}\s*[AP]M\s+(-?\d+|MM)\s+\d{4}\s+(-?\d+|MM)\s+(-?\d+|MM)',
         text
     )
     if temp_max_full:
@@ -268,7 +280,7 @@ def parse_cli_report(text):
         result["temp_high_depart"] = _parse_number(temp_max_full.group(4))
 
     temp_low_full = re.search(
-        r'MINIMUM\s+(-?\d+)\s+\d{1,2}:\d{2}\s*[AP]M\s+(-?\d+|MM)\s+\d{4}\s+(-?\d+|MM)\s+(-?\d+|MM)',
+        r'MINIMUM\s+(-?\d+)[A-Z]?\s+\d{1,2}:?\d{2}\s*[AP]M\s+(-?\d+|MM)\s+\d{4}\s+(-?\d+|MM)\s+(-?\d+|MM)',
         text
     )
     if temp_low_full:

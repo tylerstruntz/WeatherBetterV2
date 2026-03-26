@@ -2,7 +2,7 @@ name: Daily Weather Pipeline
 
 on:
   schedule:
-    - cron: '0 8 * * *'   # 8:00 AM CDT (UTC-5) / 7:00 AM CST (UTC-6)
+    - cron: '0 8 * * *'    # 4:00 AM EDT (UTC-4) -- evaluate same-day markets
   workflow_dispatch:         # allows manual trigger from GitHub UI
 
 jobs:
@@ -17,7 +17,8 @@ jobs:
       DB_USER:        ${{ secrets.DB_USER }}
       DB_PASSWORD:    ${{ secrets.DB_PASSWORD }}
       DB_SSLMODE:     require
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      DISCORD_WEBHOOK:              ${{ secrets.DISCORD_WEBHOOK }}
+      GOOGLE_SERVICE_ACCOUNT_JSON:  ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
 
     steps:
       - name: Checkout code
@@ -34,7 +35,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install psycopg2-binary requests
+        run: pip install psycopg2-binary requests scipy gspread google-auth
 
       - name: Run ingest_observations
         id: obs
@@ -44,9 +45,17 @@ jobs:
         id: fcst
         run: python scripts/ingest_forecasts.py
 
-      - name: Run verify_forecasts
-        id: verify
-        run: python scripts/verify_forecasts.py
+      - name: Run train_and_predict
+        id: train
+        run: python scripts/train_and_predict.py
+
+      - name: Run evaluate_markets
+        id: eval
+        run: python scripts/evaluate_markets.py --show-all
+
+      - name: Run paper_trade
+        id: trade
+        run: python scripts/paper_trade.py --commit
 
       - name: Send Discord notification
         if: always()
@@ -68,8 +77,10 @@ jobs:
                 \"description\": \"Run completed on $(date -u '+%Y-%m-%d at %H:%M UTC')\",
                 \"fields\": [
                   {\"name\": \"Observations\", \"value\": \"${{ steps.obs.outcome || 'ran' }}\", \"inline\": true},
-                  {\"name\": \"Forecasts\", \"value\": \"${{ steps.fcst.outcome || 'ran' }}\", \"inline\": true},
-                  {\"name\": \"Verification\", \"value\": \"${{ steps.verify.outcome || 'ran' }}\", \"inline\": true}
+                  {\"name\": \"Forecasts\",    \"value\": \"${{ steps.fcst.outcome || 'ran' }}\", \"inline\": true},
+                  {\"name\": \"Train+Predict\",\"value\": \"${{ steps.train.outcome || 'ran' }}\", \"inline\": true},
+                  {\"name\": \"Evaluate\",     \"value\": \"${{ steps.eval.outcome || 'ran' }}\", \"inline\": true},
+                  {\"name\": \"Paper Trade\",  \"value\": \"${{ steps.trade.outcome || 'ran' }}\", \"inline\": true}
                 ]
               }]
             }"
