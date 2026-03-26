@@ -161,6 +161,42 @@ def load_today_forecasts(today):
     return df
 
 
+def load_historical_forecasts():
+    """
+    Load all historical 1-day-ahead forecasts (lead_days=1) from GFS, ECMWF, NWS.
+    Returns dict: {(city_id, target_date_str): {gfs, ecmwf, nws}}
+    Used to enrich training features so the model learns to correct forecast errors.
+    """
+    conn = get_db_conn()
+    df = pd.read_sql("""
+        SELECT city_id, source_id, target_date, temp_high
+        FROM forecasts
+        WHERE source_id IN (1, 2, 3)
+          AND lead_days = 1
+          AND temp_high IS NOT NULL
+    """, conn)
+    conn.close()
+    if df.empty:
+        return {}
+
+    result = {}
+    for _, row in df.iterrows():
+        key = (int(row["city_id"]), str(row["target_date"])[:10])
+        if key not in result:
+            result[key] = {"gfs_high": None, "ecmwf_high": None, "nws_high": None}
+        sid = int(row["source_id"])
+        val = float(row["temp_high"])
+        if sid == 1:
+            result[key]["gfs_high"] = val
+        elif sid == 2:
+            result[key]["ecmwf_high"] = val
+        elif sid == 3:
+            result[key]["nws_high"] = val
+
+    log.info(f"  Loaded historical forecasts for {len(result)} city-dates")
+    return result
+
+
 def load_cities():
     """Load city list."""
     conn = get_db_conn()
@@ -173,10 +209,14 @@ def load_cities():
 # Feature engineering
 # ---------------------------------------------------------------------------
 
-def build_features(obs_df):
+def build_features(obs_df, historical_forecasts=None):
     """
     Build training features from observation history.
     Each row = one city-day with lag/rolling features.
+
+    historical_forecasts: dict from load_historical_forecasts(), keyed by
+    (city_id, date_str). When provided, joins 1-day-ahead NWS/GFS/ECMWF
+    forecasts into training so the model learns to correct forecast errors.
     """
     dfs = []
     for city_id, group in obs_df.groupby("city_id"):
@@ -212,10 +252,23 @@ def build_features(obs_df):
         g["dtr_roll_7"]   = dtr.shift(1).rolling(7, min_periods=3).mean()
         g["dtr_roll_30"]  = dtr.shift(1).rolling(30, min_periods=7).mean()
         g["dtr_std_7"]    = dtr.shift(1).rolling(7, min_periods=3).std()
-        # DTR anomaly: how far yesterday's DTR deviated from the 30-day average
         g["dtr_anomaly"]  = g["dtr_lag_1"] - g["dtr_roll_30"]
-        # DTR trend: is the daily swing expanding or compressing?
         g["dtr_trend_7"]  = dtr.shift(1) - dtr.shift(7)
+
+        # --- Join historical 1-day-ahead forecasts (NWS/GFS/ECMWF) ---
+        # These are the most valuable training features: the model learns to
+        # correct systematic biases in NWS/GFS forecasts.
+        g["gfs_high"]   = np.nan
+        g["ecmwf_high"] = np.nan
+        g["nws_high"]   = np.nan
+        if historical_forecasts:
+            for date_idx in g.index:
+                key = (city_id, str(date_idx.date()))
+                fc = historical_forecasts.get(key)
+                if fc:
+                    g.at[date_idx, "gfs_high"]   = fc["gfs_high"]   if fc["gfs_high"]   is not None else np.nan
+                    g.at[date_idx, "ecmwf_high"] = fc["ecmwf_high"] if fc["ecmwf_high"] is not None else np.nan
+                    g.at[date_idx, "nws_high"]   = fc["nws_high"]   if fc["nws_high"]   is not None else np.nan
 
         dfs.append(g)
 
@@ -355,7 +408,12 @@ def train_model(features_df, target_col="temp_high"):
         if fc in df.columns and df[fc].notna().sum() > 100:
             feat_cols.append(fc)
 
-    df_clean = df.dropna(subset=feat_cols)
+    # Drop rows missing the BASE features or the target, but keep rows where
+    # NWS/GFS/ECMWF are NaN — XGBoost handles missing values natively via
+    # learned split directions. This ensures we train on all historical data
+    # (~50k+ rows) rather than only the few hundred with forecast coverage.
+    required = FEATURE_COLS_BASE + [target_col]
+    df_clean = df.dropna(subset=required)
 
     if len(df_clean) < 100:
         log.error(f"Not enough training data: {len(df_clean)} rows")
@@ -493,10 +551,16 @@ def main():
     else:
         log.info("  No external forecasts available yet — using climatological features only")
 
+    # Load historical 1-day-ahead forecasts to enrich training features
+    log.info("Loading historical forecasts for training features...")
+    historical_forecasts = load_historical_forecasts()
+
     # Build training features
     log.info("Building training features...")
-    train_df = build_features(obs_df)
-    log.info(f"  {len(train_df):,} training rows after feature engineering")
+    train_df = build_features(obs_df, historical_forecasts)
+    nws_coverage = train_df["nws_high"].notna().sum()
+    log.info(f"  {len(train_df):,} training rows after feature engineering "
+             f"({nws_coverage} rows with NWS forecast data)")
 
     # Train high model
     log.info("Training temp_high model...")
